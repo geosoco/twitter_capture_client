@@ -1,0 +1,8 @@
+coloredlogs==0.8
+oauthlib==0.7.2
+requests==2.6.0
+requests-oauthlib==0.4.2
+simplejson==3.6.5
+six==1.9.0
+tweepy==3.3.0
+twitter-monitor==0.2.10
