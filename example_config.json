@@ -16,7 +16,6 @@
 		"access_token_secret": "<<insert access token secret>>"
 	},
 
-	"source_addr": "128.95.157.57",
 
 	"output": {
 		"base_dir": "./captures/",
