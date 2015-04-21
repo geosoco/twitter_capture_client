@@ -1,0 +1,82 @@
+{
+
+	"server": {
+		"base_url": "http://localhost/api/",
+		"client_id": 1,
+		"auth_token": "<<insert auth token>>",
+		"ping_interval": 10.0,
+		"update_interval": 30.0
+	},
+
+
+	"twitter_auth": {
+		"api_key": "<<insert twitter api_key>>",
+		"api_secret": "<< insert twitter api secret>>",
+		"access_token": "<<insert access token>>",
+		"access_token_secret": "<<insert access token secret>>"
+	},
+
+	"source_addr": "128.95.157.57",
+
+	"output": {
+		"base_dir": "./captures/",
+		"extension": ".json",
+		"temporary_extension": ".tmp",
+		"minute_interval": 10,
+		"filename_timefmt": "%Y%m%d_%H%M"
+	},
+
+	"logging": {
+		"version": 1,
+		"disable_existing_loggers": false,
+
+		"formatters" : {
+			"default" : {
+				"format": "%(asctime)s %(levelname)-8s %(name)-15s %(message)s",
+				"datefmt": "%Y-%m-%d %H:%M:%S"
+				
+			}
+		},
+
+		"handlers": {
+			"console": {
+				"class": "coloredlogs.ColoredStreamHandler",
+				"level": "DEBUG",
+				"formatter": "default",
+				"stream": "ext://sys.stdout"
+			},
+
+			"error_file_handler": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "ERROR",
+            "formatter": "default",
+            "filename": "errors.log",
+            "maxBytes": 10485760,
+            "backupCount": 20,
+            "encoding": "utf8"
+        	}
+		},
+
+		"loggers": {
+			"twitter_monitor.listener": {
+				"level": "WARN",
+				"handlers": ["console"],
+				"propagate": "no"
+			},
+			"requests.packages.urllib3.connectionpool": {
+				"level": "WARN",
+				"handlers": ["console"],
+				"propagate": "no"				
+			}
+		},
+        
+		"root": {
+			"level": "DEBUG",
+			"handlers": [
+				"console",
+				"error_file_handler"
+			]
+		}
+	}
+
+}
