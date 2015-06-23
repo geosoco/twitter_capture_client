@@ -26,6 +26,7 @@ class SourceAddrStreamer(tweepy.Stream):
 
 	def __init__(self, auth, listener, source_addr = None, **kwargs):
 		self.source_addr = source_addr
+		self.disconnected = False
 		return super(SourceAddrStreamer, self).__init__(auth, listener, **kwargs)
 
 	def new_session(self):
@@ -33,6 +34,16 @@ class SourceAddrStreamer(tweepy.Stream):
 		if self.source_addr is not None:
 			self.session.mount("http://", SourceAddressAdapter((self.source_addr, 0)))
 			self.session.mount("https://", SourceAddressAdapter((self.source_addr, 0)))
+
+
+
+	def on_closed(self, resp):
+		super(SourceAddrStreamer, self).on_closed(resp)
+
+		if self.running == True:
+			self.disconnected()
+
+
 
 
 class Streamer(object):

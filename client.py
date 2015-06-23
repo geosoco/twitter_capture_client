@@ -176,7 +176,7 @@ class Client(object):
 				subtractions = current_keywords - keywords_set
 				additions = keywords_set - current_keywords
 				self.log.info("    + : %s", repr(additions))
-				self.log.info("    - %s", repr(subtractions))
+				self.log.info("    - : %s", repr(subtractions))
 
 				keywords_changed = True
 				current_keywords = keywords_set
@@ -351,7 +351,7 @@ def run_capture( base_url, token, client_id, ping_interval, update_interval, twi
 			subtractions = current_keywords - keywords_set
 			additions = keywords_set - current_keywords
 			log.info("    + : %s", repr(additions))
-			log.info("    - %s", repr(subtractions))
+			log.info("    - : %s", repr(subtractions))
 
 			keywords_changed = True
 			current_keywords = keywords_set

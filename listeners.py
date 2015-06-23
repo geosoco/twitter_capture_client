@@ -30,7 +30,17 @@ class BaseListener(JsonStreamListener):
 
 	def on_disconnect(self):
 		super(BaseListener, self).on_disconnect()
-		self.disconnected = True
+		self.connected = False
+		return True
+
+	def on_error(self):
+		super(BaseListener, self).on_error()
+		self.connected = False
+		return True
+
+	def on_exception(self):
+		super(BaseListener, self).on_exception()
+		self.connected = False
 		return True
 
 	def on_status(self, status):
