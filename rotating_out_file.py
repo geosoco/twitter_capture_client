@@ -1,5 +1,8 @@
+#!/usr/bin/env python
+"""Rotating outfile class used to store files."""
+
 import os
-from datetime import datetime, time
+from datetime import datetime
 import unittest
 import threading
 
@@ -7,351 +10,372 @@ import threading
 
 
 class RotatingOutFile(object):
-	"""
-	Rotating File for logging tweets.
 
-	This will keep a file open and write to it until time rolls to the next block, where the old one will be renamed
-	"""
+    """Rotating File for logging tweets.
 
-	def __init__(self, base_dir = None, collection_name = None, extension = ".json", temporary_extension = ".tmp", minute_interval = 10, filename_timefmt = "%Y%m%d_%H%M"):
-		self.extension = extension
-		self.temporary_extension = temporary_extension
-		self.base_dir = None	# gets officially set in set_collection
-		self.collection_name = None		
-		self.cur_name = None
-		self.minute_interval = minute_interval
-		self.filename_timefmt = filename_timefmt
-		self.file = None
+    This will keep a file open and write to it until time rolls to the
+    next block, where the old one will be renamed
+    """
 
-		self.rlock = threading.RLock()
+    def __init__(
+            self,
+            base_dir=None,
+            collection_name=None,
+            extension=".json",
+            temporary_extension=".tmp",
+            minute_interval=10,
+            filename_timefmt="%Y%m%d_%H%M"):
+        """construct rotating out file."""
 
-		self.set_collection(base_dir = base_dir, collection_name = collection_name)
+        self.extension = extension
+        self.temporary_extension = temporary_extension
+        self.base_dir = None    # gets officially set in set_collection
+        self.collection_name = None
+        self.cur_name = None
+        self.minute_interval = minute_interval
+        self.filename_timefmt = filename_timefmt
+        self.file = None
 
+        self.rlock = threading.RLock()
 
-	def make_path(self):
-		"""
-		makes the file path
-		"""
+        self.set_collection(base_dir=base_dir, collection_name=collection_name)
 
-		self.rlock.acquire()
 
-		try:
-			path = os.path.join(self.base_dir, self.collection_name)
-			if not os.path.exists(path):
-				os.makedirs(path)
-		finally:
-			self.rlock.release()
+    def make_path(self):
+        """make the file path."""
 
+        self.rlock.acquire()
 
+        try:
+            path = os.path.join(self.base_dir, self.collection_name)
+            if not os.path.exists(path):
+                os.makedirs(path)
+        finally:
+            self.rlock.release()
 
-	def start_file(self, filename):
-		"""
-		Updates the current filename
-		"""
 
-		# acquire the lock
-		self.rlock.acquire()
 
-		try:
-			# update our filename
-			self.cur_name = filename
+    def start_file(self, filename):
+        """Update the current filename."""
 
-			# open the file
-			self.file = open(self.cur_name, "w")
+        # acquire the lock
+        self.rlock.acquire()
 
-		finally:
-			# release the lock
-			self.rlock.release()
+        try:
+            # update our filename
+            self.cur_name = filename
 
+            # open the file
+            self.file = open(self.cur_name, "w")
 
-	def close_file(self):
-		"""
-		"""
+        finally:
+            # release the lock
+            self.rlock.release()
 
-		# acquire the lock
-		self.rlock.acquire()
 
-		try:
-			if self.file is not None:
-				self.file.close()
+    def close_file(self):
+        """close the file."""
 
-			self.file = None
+        # acquire the lock
+        self.rlock.acquire()
 
+        try:
+            if self.file is not None:
+                self.file.close()
 
-		finally:
-			# release the lock
-			self.rlock.release()
+            self.file = None
 
 
-	def end_file(self):
-		"""
-		Ends the usage of hte file. 
-		This should close the file and rename it to not have the temporary extension
-		"""
+        finally:
+            # release the lock
+            self.rlock.release()
 
-		# acquire the lock
-		self.rlock.acquire()
 
-		try:
-			# close the file
-			self.close_file()
+    def end_file(self):
+        """End the usage of the file.
 
-			# check to see if we need to rename it
-			finished_filename = self.cur_name
+        This should close the file and rename it to not have the
+        temporary extension
+        """
 
-			if finished_filename is not None:
-				if self.temporary_extension and finished_filename.endswith(self.temporary_extension):
-					temp_ext_length = len(self.temporary_extension) 
-					finished_filename = finished_filename[:-temp_ext_length]
+        # acquire the lock
+        self.rlock.acquire()
 
-				# rename the file if necessary
-				if self.cur_name != finished_filename:
-					os.rename(self.cur_name, finished_filename)
+        try:
+            # close the file
+            self.close_file()
 
+            # check to see if we need to rename it
+            finished_filename = self.cur_name
 
+            if finished_filename is not None:
+                if (self.temporary_extension and
+                        finished_filename.endswith(self.temporary_extension)):
+                    temp_ext_length = len(self.temporary_extension)
+                    finished_filename = finished_filename[:-temp_ext_length]
 
-		finally:
-			# release the lock
-			self.rlock.release()
+                # rename the file if necessary
+                if self.cur_name != finished_filename:
+                    os.rename(self.cur_name, finished_filename)
 
 
 
-	def set_collection(self, base_dir = None, collection_name = None):
-		"""
-		Update the collection name.
+        finally:
+            # release the lock
+            self.rlock.release()
 
-		Warning, this the potential for a race condition with file/path names
-		"""
 
 
-		changed = False
+    def set_collection(self, base_dir=None, collection_name=None):
+        """Update the collection name.
 
-		# acquire the lock
-		self.rlock.acquire()
+        Warning, this the potential for a race condition with file/path names
+        """
 
-		try:
-			# update if base_dir changed
-			if base_dir != self.base_dir:
-				self.base_dir = base_dir
-				changed = True
 
-			# update if collection changed
-			if collection_name != self.collection_name:
-				self.collection_name = collection_name
-				changed = True
+        changed = False
 
-			# if anything changed, update the path
-			if changed is True:
-				self.update_path()
+        # acquire the lock
+        self.rlock.acquire()
 
-		finally:
-			# release the lock
-			self.rlock.release()
+        try:
+            # update if base_dir changed
+            if base_dir != self.base_dir:
+                self.base_dir = base_dir
+                changed = True
 
+            # update if collection changed
+            if collection_name != self.collection_name:
+                self.collection_name = collection_name
+                changed = True
 
-	def update_path(self):
-		"""
+            # if anything changed, update the path
+            if changed is True:
+                self.update_path()
 
-		"""
+        finally:
+            # release the lock
+            self.rlock.release()
 
-		# acquire the lock
-		self.rlock.acquire()
 
-		try:
-			# update the base_filename
-			self.base_filename = os.path.join(self.base_dir, self.collection_name, self.collection_name)
+    def update_path(self):
+        """Update the file path."""
 
-			# make our initial path
-			self.make_path()
-		finally:
-			# release the rlock
-			self.rlock.release()
+        # acquire the lock
+        self.rlock.acquire()
 
+        try:
+            # update the base_filename
+            self.base_filename = os.path.join(
+                self.base_dir,
+                self.collection_name,
+                self.collection_name
+            )
 
-	def get_filename(self, datetime_, temp=False ):
-		"""
-		calculates and returns a new filename based on current time
-		it rounds the minute to minute_interval, so 12:12 with a 10-minute interval, will be 12:10
-		"""
+            # make our initial path
+            self.make_path()
+        finally:
+            # release the rlock
+            self.rlock.release()
 
-		name = None
 
-		# acquire the lock
-		self.rlock.acquire()
+    def get_filename(self, datetime_, temp=False):
+        """get the current filename.
 
-		try:
-			# round the da
-			base_time = datetime_.time()
-			rounded_time = base_time.replace(minute= ((base_time.minute / self.minute_interval) * self.minute_interval))
-			rounded_datetime = datetime.combine(datetime_.date(), rounded_time)
+        calculates and returns a new filename based on current time
+        it rounds the minute to minute_interval, so 12:12 with a
+        10-minute interval, will be 12:10
+        """
 
-			name = self.base_filename + rounded_datetime.strftime(self.filename_timefmt) + self.extension
-			if temp == True:
-				name += self.temporary_extension
-		finally:
-			# release the rlock
-			self.rlock.release()			
+        name = None
 
-		return name
-		
+        # acquire the lock
+        self.rlock.acquire()
 
+        try:
+            # round the da
+            base_time = datetime_.time()
+            minute = (base_time.minute / self.minute_interval)
+            minute *= self.minute_interval
+            rounded_time = base_time.replace(minute=minute)
+            rounded_datetime = datetime.combine(datetime_.date(), rounded_time)
 
-	def write(self, line, datetime_ = None):
-		"""
-		writes the specified line to the file.
+            time_str = rounded_datetime.strftime(self.filename_timefmt)
+            name = self.base_filename + time_str + self.extension
+            if temp is True:
+                name += self.temporary_extension
+        finally:
+            # release the rlock
+            self.rlock.release()
 
-		If datetime_ is None, then it uses datetime.now
-		"""
+        return name
 
-		# acquire the lock
-		self.rlock.acquire()
 
-		try:
-			# adjust datetime_ to be now, if it's None
-			if datetime_ is None:
-				datetime_ = datetime.now()
 
-			# test if the filenames have changed
-			fn = self.get_filename(datetime_, True)
-			if fn != self.cur_name:
+    def write(self, line, datetime_=None):
+        """write the specified line to the file.
 
-				# if the old file is a valid name, "end" it
-				if self.cur_name is not None:
-					self.end_file()
+        If datetime_ is None, then it uses datetime.now
+        """
 
-				self.start_file(fn)
+        # acquire the lock
+        self.rlock.acquire()
 
-			# write the data
-			self.file.write(line + "\n")
+        try:
+            # adjust datetime_ to be now, if it's None
+            if datetime_ is None:
+                datetime_ = datetime.now()
 
-		finally:
-			# release the rlock
-			self.rlock.release()
+            # test if the filenames have changed
+            fn = self.get_filename(datetime_, True)
+            if fn != self.cur_name:
 
+                # if the old file is a valid name, "end" it
+                if self.cur_name is not None:
+                    self.end_file()
 
+                self.start_file(fn)
 
+            # write the data
+            self.file.write(line + "\n")
 
-
-
-
-
-
-
-
-
-
-
-
-
+        finally:
+            # release the rlock
+            self.rlock.release()
 
 
 #
 # unittests
 #
 #
-
-
 class MakePathTest(unittest.TestCase):
-	def setUp(self):
-		import string
-		import random
 
-		# use random basenames and collection names to make sure previous failed tests don't cause this to succeed
-		n = 8
-		self.base_dir = ".unittest-" + ''.join(random.SystemRandom().choice(string.uppercase + string.digits) for _ in xrange(n))
-		self.collection = ''.join(random.SystemRandom().choice(string.uppercase + string.digits) for _ in xrange(n))
+    """MakePathTest."""
 
-	def tearDown(self):
-		import shutil
+    def setUp(self):
+        """set up the test."""
+        self.base_dir = ".unittest-" + self.getRandomString()
+        self.collection = self.getRandomString()
 
-		# attempt to remove the entire temporary tree
-		shutil.rmtree(self.base_dir)
+    def getRandomString(self, n=8):
+        """get random string."""
+        import string
+        import random
+        # use random basenames and collection names to make sure previous
+        # failed tests don't cause this to succeed
+        return (''.join(random.SystemRandom().choice(string.uppercase +
+                string.digits) for _ in xrange(n)))
 
-	def test(self):
-		file = RotatingOutFile(
-			base_dir = self.base_dir, 
-			collection_name = self.collection, 
-			extension = ".json", 
-			temporary_extension = ".tmp", 
-			minute_interval = 10 )
+    def tearDown(self):
+        """do teardown."""
+        import shutil
 
-		
+        # attempt to remove the entire temporary tree
+        shutil.rmtree(self.base_dir)
+
+    def test(self):
+        """do test."""
+        # f = RotatingOutFile(
+        #    base_dir=self.base_dir,
+        #    collection_name=self.collection,
+        #    extension=".json",
+        #    temporary_extension=".tmp",
+        #    minute_interval=10)
+        pass
+
 
 class FilenameTest(unittest.TestCase):
 
-	def setUp(self):
-		self.base_dir = ".unittests"
-		self.collection = "test"
-		self.ext = ".json"
-		self.tmp_ext = ".tmp"
-		self.dt = datetime(1997,10,30,12,56,0,0)
-		self.dt_string = "19971030_1250"
-		self.filename = os.path.join(
-			self.base_dir, 
-			self.collection, 
-			self.collection) 
+    """Filename tests."""
 
-		self.file = RotatingOutFile(
-			base_dir = self.base_dir, 
-			collection_name = self.collection, 
-			extension = ".json", 
-			temporary_extension = ".tmp", 
-			minute_interval = 10 )
+    def setUp(self):
+        """set up the test."""
 
-	def tearDown(self):
-		import shutil
+        self.base_dir = ".unittests"
+        self.collection = "test"
+        self.ext = ".json"
+        self.tmp_ext = ".tmp"
+        self.dt = datetime(1997, 10, 30, 12, 56, 0, 0)
+        self.dt_string = "19971030_1250"
+        self.filename = os.path.join(
+            self.base_dir,
+            self.collection,
+            self.collection)
 
-		# attempt to remove the entire temporary tree
-		shutil.rmtree(self.base_dir)
+        self.file = RotatingOutFile(
+            base_dir=self.base_dir,
+            collection_name=self.collection,
+            extension=".json",
+            temporary_extension=".tmp",
+            minute_interval=10)
 
-	def test_makepath(self):
-		unittest_path = os.path.join(
-			self.base_dir,
-			self.collection)
-		self.assertTrue(os.path.exists(unittest_path))
+    def tearDown(self):
+        """teardown the test."""
+        import shutil
 
+        # attempt to remove the entire temporary tree
+        shutil.rmtree(self.base_dir)
 
-
-
-	def test_path_concat(self):
-		"""
-		Tests teh basic path concat methods for a time
-		"""
-		filename = self.filename + self.dt_string + self.ext
-		result = self.file.get_filename(self.dt)
-		self.assertEqual(result, filename, "paths are not equal: '%s', '%s'"%(result, filename))
-
-	def test_path_concat_temp(self):
-		"""
-		tests that the temporary extension is concatenated
-		"""
-		filename = self.filename + self.dt_string + self.ext + self.tmp_ext
-		result = self.file.get_filename(self.dt, True)
-		self.assertEqual(result,filename, "paths are not equal: '%s', '%s'"%(result, filename))
+    def test_makepath(self):
+        """make testpath."""
+        unittest_path = os.path.join(
+            self.base_dir,
+            self.collection)
+        self.assertTrue(os.path.exists(unittest_path))
 
 
-	def test_write(self):
-		"""
-		"""
-		import string
-		import random
 
-		filename = self.file.get_filename(self.dt, True)
 
-		# randomize a string for content
-		test_content = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(32))
+    def test_path_concat(self):
+        """Test the basic path concat methods for a time."""
+        filename = self.filename + self.dt_string + self.ext
+        result = self.file.get_filename(self.dt)
+        self.assertEqual(
+            result,
+            filename,
+            "paths are not equal: '%s', '%s'" % (result, filename)
+        )
 
-		# write content
-		self.file.write(test_content, self.dt)
-		self.file.close_file()
+    def getRandomString(self, n=8):
+        """get random string."""
+        import string
+        import random
+        # use random basenames and collection names to make sure previous
+        # failed tests don't cause this to succeed
+        return (''.join(random.SystemRandom().choice(string.uppercase +
+                string.digits) for _ in xrange(n)))
 
-		# verify it was created
-		self.assertTrue(os.path.exists(filename), "Temp file wasn't created (%s)"%(filename))
+    def test_path_concat_temp(self):
+        """test that the temporary extension is concatenated."""
+        filename = self.filename + self.dt_string + self.ext + self.tmp_ext
+        result = self.file.get_filename(self.dt, True)
+        self.assertEqual(
+            result,
+            filename,
+            "paths are not equal: '%s', '%s'" % (result, filename))
 
-		# attempt to verify the contents 
-		with open(filename,"r") as f:
-			content = f.read()
-			self.assertEqual(test_content + "\n", content)
+
+    def test_write(self):
+        """test write."""
+
+        filename = self.file.get_filename(self.dt, True)
+
+        # randomize a string for content
+        test_content = self.getRandomString(32)
+
+        # write content
+        self.file.write(test_content, self.dt)
+        self.file.close_file()
+
+        # verify it was created
+        self.assertTrue(
+            os.path.exists(filename),
+            "Temp file wasn't created (%s)" % (filename))
+
+        # attempt to verify the contents
+        with open(filename, "r") as f:
+            content = f.read()
+            self.assertEqual(test_content + "\n", content)
 
 
 
@@ -359,4 +383,3 @@ class FilenameTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
