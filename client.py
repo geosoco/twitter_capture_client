@@ -145,6 +145,11 @@ class Client(object):
         # start the collection
         self.start_collection()
 
+        # make sure we got a valid stream
+        if self.stream is None:
+            log.error("stream was not started")
+            return
+
         # old state defaults
         old_status = STATUS_UNKNOWN
 
@@ -199,9 +204,9 @@ class Client(object):
 
 
             if old_status != status:
-                self.log.info("changing status %d -> %d", old_status, status)
+                self.log.info("changing status#1 %d -> %d", old_status, status)
                 if status == STATUS_STARTING or status == STATUS_STARTED:
-                    if self.stream is not None and not self.stream.isRunning():
+                    if not self.stream.isRunning():
                         self.log.info("Starting stream")
                         self.stream.track_list = keywords
                         sm_total_count = status_msg['total_count']
@@ -211,12 +216,12 @@ class Client(object):
                         # ackknowledge that we have the newest keywords in here
                         keywords_changed = False
                 elif status == STATUS_STOPPING or status == STATUS_STOPPED:
-                    if self.stream is not None and self.stream.isRunning():
+                    if self.stream.isRunning():
                         self.log.info("Stopping stream")
                         self.stream.stop()
             elif keywords_changed:
                 self.stream.track_list = keywords
-                if self.stream is not None and self.stream.isRunning():
+                if self.stream.isRunning():
                     self.log.debug("restarting streams for keywords")
                     self.stream.stop()
                     sleep(ping_interval)
@@ -229,23 +234,23 @@ class Client(object):
 
             # new status
             new_status = STATUS_UNKNOWN
-            if self.stream is not None:
-                if self.stream.isRunning():
-                    self.log.debug("stream exists and is running")
-                    if status != STATUS_STOPPING:
-                        new_status = STATUS_STARTED
-                else:
-                    if status != STATUS_STARTING:
-                        self.log.debug("stream exists but is not running")
-                        new_status = STATUS_STOPPED
+            if self.stream.isRunning():
+                self.log.debug("stream exists and is running")
+                if status != STATUS_STOPPING:
+                    new_status = STATUS_STARTED
             else:
-                new_status = STATUS_STOPPED
+                if status != STATUS_STARTING:
+                    self.log.debug(
+                        "stream exists but is not running (forcing %d -> %d",
+                        status,
+                        new_status)
+                    new_status = STATUS_STOPPED
 
 
 
             # if there's a discrepancy
             if new_status != status and new_status != STATUS_UNKNOWN:
-                self.log.info("changing status %d -> %d", status, new_status)
+                self.log.info("changing status#2 %d -> %d", status, new_status)
                 self.sm.updateStatus(new_status)
 
             # update the old status
@@ -255,7 +260,7 @@ class Client(object):
 
             # output status
             # send update status to server if we're running
-            if self.stream and self.stream.isRunning():
+            if self.stream.isRunning():
                 self.listener.print_status()
                 # sm.putUpdate(
                 #   listener.received,
@@ -293,11 +298,11 @@ class Client(object):
 
 
         # wait for stream to stop
-        if self.stream is not None and self.stream.isRunning():
+        if self.stream.isRunning():
             self.log.info("Stopping...")
             self.stream.stop()
 
-            while self.stream and self.stream.isRunning():
+            while self.stream.isRunning():
                 self.log.info("Waiting for self.logger to stop")
                 sleep(1)
 

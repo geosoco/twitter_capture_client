@@ -32,148 +32,69 @@ class ServerMessenger(object):
         log.debug("headers (%s)" % (self.headers))
 
 
-
-    def doGet(self, endpoint, args=None):
-        """perform a get on the endpoint."""
-
+    def request(self, method, endpoint, params=None, data=None):
+        """request wrapper"""
         url = self.base_url + endpoint
-        log.debug("doGet - url = %s", url)
+        log.debug(
+            "request(%s, '%s', params=%s, data=%s)",
+            method,
+            url,
+            repr(params),
+            repr(data))
+
+        ret = None
 
         try:
-            # send params if available, otherwise, just the request
-            if args is not None:
-                log.debug("params: %s", repr(args))
-                ret = requests.get(url, params=args, headers=self.headers)
-            else:
-                ret = requests.get(url, headers=self.headers)
+            ret = requests.request(
+                method,
+                url,
+                params=params,
+                data=data,
+                headers=self.headers)
 
             # log some debug output
             log.debug("request returned: %d %s", ret.status_code, ret.text)
-            if ret is not None and ret.status_code != requests.codes.ok:
+            if (ret is not None and ret.status_code < requests.codes.ok or
+                    ret.status_code > requests.codes.accepted):
                 log.error("request error: %d %s", ret.status_code, ret.text)
+                return None
 
             # return our value
             return ret
-
         except Exception, e:
             log.exception("exception occurred: %s", e.message)
-            return None
+
+    def get(self, endpoint, params=None, data=None):
+        """ perform http get """
+        return self.request("GET", endpoint, params=params, data=data)
 
 
     def doSimpleJSONGet(self, endpoint, args=None):
         """get simple json from endpoint."""
-        resp = self.doGet(endpoint)
+        resp = self.get(endpoint, params=args)
 
         if resp is not None:
-            if resp.status_code == requests.codes.ok:
-                log.debug('server returned: %s', resp.json())
-                return resp.json()
-            else:
-                log.error("server returned error code: %d", resp.status_code)
+            log.debug('server returned: %s', resp.json())
+            return resp.json()
         else:
-            log.error("doGet returned None")
+            log.error("get returned None")
 
         return None
 
 
     def doPut(self, endpoint, data=None):
         """put request to server."""
+        return self.request("PUT", endpoint, data=data)
 
-        url = self.base_url + endpoint
-        log.debug("doPut - url = %s", url)
-
-        try:
-            if data is not None:
-                log.debug("put data: %s", repr(data))
-                ret = requests.put(url, data=data, headers=self.headers)
-            else:
-                ret = requests.put(url, headers=self.headers)
-
-            # log some debug output
-            log.debug("put request returned: %d %s", ret.status_code, ret.text)
-            if (ret is not None and ret.status_code < requests.codes.ok or
-                    ret.status_code > requests.codes.accepted):
-                log.error(
-                    "put request error: %d %s",
-                    ret.status_code,
-                    ret.text
-                )
-
-            # return our value
-            return ret
-
-        except Exception:
-            log.exception("exception in doPut")
-            return None
 
     def doPost(self, endpoint, data=None):
         """post to server."""
-
-        url = self.base_url + endpoint
-        log.debug("doPost - url = %s", url)
-
-        try:
-            if data is not None:
-                log.debug("post data: %s", repr(data))
-                ret = requests.post(url, data=data, headers=self.headers)
-            else:
-                ret = requests.post(url, headers=self.headers)
-
-            # log some debug output
-            log.debug(
-                "post request returned: %d %s",
-                ret.status_code,
-                ret.text)
-            if (ret is not None and ret.status_code < requests.codes.ok or
-                    ret.status_code > requests.codes.accepted):
-                log.error(
-                    "post request error: %d %s",
-                    ret.status_code,
-                    ret.text
-                )
-
-            # return our value
-            return ret
-
-        except Exception:
-            log.exception("exception in doPost")
-            return None
+        return self.request("POST", endpoint, data=data)
 
 
     def doPatch(self, endpoint, data=None):
         """send patch message to server."""
-
-        url = self.base_url + endpoint
-        log.debug("doPatch - url = %s", url)
-
-        try:
-            if data is not None:
-                log.debug("patch data: %s", repr(data))
-                ret = requests.patch(url, data=data, headers=self.headers)
-            else:
-                ret = requests.patch(url, headers=self.headers)
-
-            # log some debug output
-            log.debug(
-                "patch request returned: %d %s",
-                ret.status_code,
-                ret.text
-            )
-            if (ret is not None and ret.status_code < requests.codes.ok or
-                    ret.status_code > requests.codes.accepted):
-                log.error(
-                    "patch request error: %d %s",
-                    ret.status_code,
-                    ret.text)
-
-            # return our value
-            return ret
-
-        except Exception:
-            log.exception("exception in doPatch")
-            return None
-
-
+        return self.request("PATCH", endpoint, data=data)
 
 
     def getStatus(self):
@@ -187,7 +108,7 @@ class ServerMessenger(object):
         """update the status."""
 
         endpoint = "jobs/%d/" % (self.active_job_id)
-        resp = self.doPut(endpoint=endpoint, data=status_obj)
+        resp = self.put(endpoint=endpoint, data=status_obj)
 
         if resp is not None:
             if resp.status_code == requests.codes.created:
@@ -217,6 +138,8 @@ class ServerMessenger(object):
                     self.putStatus(status_msg)
                 else:
                     log.warn("attempt to update status and its already set")
+            else:
+                log.error("status message is invalid")
         else:
             log.error("can't update status because getStatus returned None")
 
@@ -242,11 +165,12 @@ class ServerMessenger(object):
 
     def pingServer(self, total_tweets, rate):
         """ping the server."""
+        decimal_rate = Decimal(rate).quantize(
+            Decimal('0.001'),
+            rounding=ROUND_DOWN)
         update_msg = {
             "total_count": total_tweets,
-            "rate": Decimal(rate).quantize(
-                Decimal('0.001'),
-                rounding=ROUND_DOWN)
+            "rate": decimal_rate
         }
 
         endpoint = "jobs/%d/" % (self.active_job_id)
