@@ -24,6 +24,7 @@ class BaseListener(StreamListener):
         self.since = time()
         self.rate = 0
         self.connected = False
+        self.error = False
         log.debug("BaseListener constructed")
 
     def on_connect(self):
@@ -36,18 +37,23 @@ class BaseListener(StreamListener):
         """handle on_disconnect event."""
         super(BaseListener, self).on_disconnect()
         self.connected = False
+        log.info("stream disconnect: ", notice)
         return True
 
     def on_error(self, status_code):
         """handle on_error event."""
         super(BaseListener, self).on_error()
         self.connected = False
+        self.error = True
+        log.error("stream error: %s", status_code)
         return True
 
     def on_exception(self, exception):
         """handle on_exception event."""
         super(BaseListener, self).on_exception(exception)
         self.connected = False
+        self.error = True
+        log.exception("exception: %s", repr(exception))
         return True
 
 
@@ -93,7 +99,7 @@ class BaseListener(StreamListener):
             if self.on_warning(data['warning'], data, raw_data) is False:
                 return False
         else:
-            logging.error("Unknown message type: " + str(raw_data))
+            log.error("Unknown message type: " + str(raw_data))
 
 
 
@@ -122,10 +128,13 @@ class BaseListener(StreamListener):
 
     def on_limit(self, limit, data, raw_data):
         """handle limited data"""
+        log.warn("limit for %s", limit)
+        log.debug("limit: %s", repr(data))
         return not self.terminate
 
     def on_warning(self, warning, data, raw_data):
         """handle warning message"""
+        log.warn("stream warning: %s", warning)
         return not self.terminate
 
     def set_terminate(self):
