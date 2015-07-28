@@ -10,7 +10,7 @@ from datetime import datetime
 
 import signal
 
-from listeners import RotatingFileListener
+from listeners.file import RotatingFileListener
 from configfile import ConfigFile
 from server_messenger import ServerMessenger
 from streamer import Streamer

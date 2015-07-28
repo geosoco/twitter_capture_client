@@ -3,7 +3,7 @@
 
 import requests
 import logging
-from decimal import decimal, Decimal
+from decimal import Decimal, ROUND_DOWN
 
 log = logging.getLogger(__name__)
 
@@ -231,7 +231,7 @@ class ServerMessenger(object):
             "total_count": total_tweets,
             "rate": Decimal(rate).quantize(
                 Decimal('0.001'),
-                rounding=decimal.ROUND_DOWN),
+                rounding=ROUND_DOWN),
             "job": self.active_job_id
         }
 
@@ -246,7 +246,7 @@ class ServerMessenger(object):
             "total_count": total_tweets,
             "rate": Decimal(rate).quantize(
                 Decimal('0.001'),
-                rounding=decimal.ROUND_DOWN)
+                rounding=ROUND_DOWN)
         }
 
         endpoint = "jobs/%d/" % (self.active_job_id)
