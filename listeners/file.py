@@ -3,7 +3,6 @@
 
 import os
 import logging
-import simplejson as json
 
 from .base import BaseListener
 from rotating_out_file import RotatingOutFile
