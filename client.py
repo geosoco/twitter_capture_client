@@ -52,6 +52,166 @@ def on_interrupt(sig, stack):
 
 
 
+
+
+class CaptureStatus(object):
+
+    """ Server status wrapper"""
+
+    STATUS_UNKNOWN = 0
+    STATUS_CREATED = 1
+    STATUS_STARTING = 2
+    STATUS_STARTED = 3
+    STATUS_STOPPING = 4
+    STATUS_STOPPED = 5
+    STATUS_UNRESPONSIVE = 6
+    STATUS_DEAD = 7
+
+    status_names = {
+        0: "STATUS_UNKNOWN",
+        1: "STATUS_CREATED",
+        2: "STATUS_STARTING",
+        3: "STATUS_STARTED",
+        4: "STATUS_STOPPING",
+        5: "STATUS_STOPPED",
+        6: "STATUS_UNRESPONSIVE",
+        7: "STATUS_DEAD"
+    }
+
+    @staticmethod
+    def isRunning(status):
+        """return true if status is running"""
+        return (status == STATUS_STARTED or status == STATUS_STARTING)
+
+    @staticmethod
+    def isStopped(status):
+        """return true if status is stopped"""
+        return (not (status == STATUS_STARTED or status == STATUS_STARTING))
+
+    def __init__(self, status):
+        self.status = status
+
+    @property
+    def running(self):
+        """return true if status is starting or started"""
+        return CaptureStatus.isRunning(self.status)
+
+    @property
+    def stopped(self):
+        """ return true if status is not starting or started"""
+        return CaptureStatus.isStopped(self.status)
+
+
+    def 
+
+
+
+class JobChecker(object):
+
+    """Wrapper class for checking jobs"""
+
+
+    def __init__(self, server_manager):
+        self.server_manager = server_manager
+        self.active_job = None
+        self.active_job_id = None
+        pass
+
+
+    def configure(self, config):
+        pass
+
+    def requestActiveJob(self):
+        active_jobs = self.sm.getActiveJobs()
+
+        # if we got active jobs back...
+        if active_jobs is not None:
+            count = active_jobs["count"]
+
+            # if we get results
+            if count > 0:
+                # we should never get more than one, so warn
+                if count > 1:
+                    self.log.warn(
+                        "more than one active_job. got %d for id %d",
+                        count,
+                        self.client_id
+                    )
+                    self.log.warn(active_jobs)
+
+                return active_jobs["results"][0]
+        # mass failure
+        return None
+
+
+    def getActiveJob(self):
+        return self.requestActiveJob()
+
+
+class TermChecker(object):
+
+    """Term Checker"""
+
+    def __init__(self, server_messenger):
+        """Initialize the termchecker."""
+        self.server_messenger = server_messenger
+
+        self.current_terms = []
+        self.current_terms_set = set()
+
+        self.terms_changed = False
+
+        self.log = logging.getLogger("TermChecker")
+
+    def configure(self, config):
+        """configure the term checker."""
+        pass
+
+    def requestTerms(self):
+        """request terms from server. used internally."""
+
+        status_msg = self.server_messenger.getStatus()
+        keywords = status_msg.get('twitter_keywords', None)
+        return (
+            [kw.strip() for kw in
+                keywords.split(",")]
+            if keywords else None)
+
+    def checkTerms(self):
+        """check and update flags based on terms."""
+
+        # request new terms from server
+        new_terms = self.requestTerms()
+        new_terms_set = set(new_terms)
+
+        # detail what type of differences
+        if new_terms_set != self.current_terms_set:
+                self.log.info("twitter filter words changed: ")
+                subtractions = self.current_terms_set - new_terms_set
+                additions = new_terms_set - self.current_terms_set
+                self.log.info("    + : %s", repr(additions))
+                self.log.info("    - : %s", repr(subtractions))
+
+                self.terms_changed = True
+                self.current_terms = new_terms
+
+
+
+
+    def haveTermsChanged(self):
+        """return true if terms have changed"""
+        return self.terms_changed
+
+    def resetTermsChanged(self):
+        """return true if terms have changed"""
+        pass
+
+    @property
+    def terms(self):
+        return self.current_terms
+
+
+
 class Client(object):
 
     """Basic Client class for polling server for jobs."""
@@ -67,12 +227,8 @@ class Client(object):
             source_addr=None):
         """construct client."""
 
-        self.base_url = base_url
-        self.token = token
-        self.client_id = client_id
         self.ping_interval = ping_interval
         self.update_interval = update_interval
-        self.twitter_auth = twitter_auth
         self.output_config = output_config
         self.source_addr = source_addr
         self.active_job = None
@@ -84,33 +240,23 @@ class Client(object):
             token=token
         )
 
+        self.job_checker = JobChecker(self.sm)
+
 
     def wait_for_job(self):
         """poll for an active job assignment."""
 
         while running is True:
-            active_jobs = self.sm.getActiveJobs()
+            active_job = self.job_checker.getActiveJob()
 
-            # if we got active jobs back...
-            if active_jobs is not None:
-                count = active_jobs["count"]
+            if active_job is not None:
+                # store data
+                self.active_job = active_job
+                self.active_job_id = active_job["id"]
 
-                # if we get results
-                if count > 0:
-                    # we should never get more than one, so warn
-                    if count > 1:
-                        self.log.warn(
-                            "more than one active_job. got %d for id %d",
-                            count,
-                            self.client_id
-                        )
-                        self.log.warn(active_jobs)
-
-                    # grab the active job details
-                    self.active_job = active_jobs["results"][0]
-                    self.active_job_id = self.active_job["id"]
-
-                    # return
+                # check status
+                status = CaptureStatus(self.active_job["status"])
+                if status.running():
                     return
 
             # sleep
@@ -154,8 +300,7 @@ class Client(object):
         old_status = STATUS_UNKNOWN
 
         # initialize keyword details
-        current_keywords = set()
-        keywords_changed = False
+        term_checker = TermChecker(self.server_messenger)
 
         # we haven't updated yet
         last_update = None
@@ -176,13 +321,13 @@ class Client(object):
                 continue
 
             # set up the status
-            status = (status_msg['status'] if 'status' in status_msg
-                      else STATUS_UNKNOWN)
-            keywords = ([kw.strip() for kw in
-                        status_msg['twitter_keywords'].split(",")]
-                        if 'twitter_keywords' in status_msg else [])
-
+            status = CaptureStatus(
+                status_msg['status'] if 'status'
+                in status_msg
+                else STATUS_UNKNOWN)
             self.log.debug("got status: %d", status_msg['status'])
+
+
 
             # look for archived date
             archived_date = status_msg["archived_date"]
@@ -191,42 +336,34 @@ class Client(object):
 
 
             # are there any keyword changes?
-            keywords_set = set(keywords)
-            if keywords_set != current_keywords:
-                self.log.info("twitter filter words changed: ")
-                subtractions = current_keywords - keywords_set
-                additions = keywords_set - current_keywords
-                self.log.info("    + : %s", repr(additions))
-                self.log.info("    - : %s", repr(subtractions))
-
-                keywords_changed = True
-                current_keywords = keywords_set
+            term_checker.checkTerms()
 
 
+            # has the status changed?
             if old_status != status:
                 self.log.info("changing status#1 %d -> %d", old_status, status)
                 if status == STATUS_STARTING or status == STATUS_STARTED:
                     if not self.stream.isRunning():
                         self.log.info("Starting stream")
-                        self.stream.track_list = keywords
+                        self.stream.track_list = term_checker.terms
                         sm_total_count = status_msg['total_count']
                         if sm_total_count is not None:
                             self.listener.total = sm_total_count
                         self.stream.start()
                         # ackknowledge that we have the newest keywords in here
-                        keywords_changed = False
+                        term_checker.resetTermsChanged()
                 elif status == STATUS_STOPPING or status == STATUS_STOPPED:
                     if self.stream.isRunning():
                         self.log.info("Stopping stream")
                         self.stream.stop()
-            elif keywords_changed:
-                self.stream.track_list = keywords
+            elif term_checker.haveTermsChanged():
+                self.stream.track_list = self.term_checker.terms
                 if self.stream.isRunning():
                     self.log.debug("restarting streams for keywords")
                     self.stream.stop()
                     sleep(ping_interval)
                     self.stream.start()
-                    keywords_changed = False
+                    term_checker.resetTermsChanged()
 
 
             # sleep
@@ -262,11 +399,6 @@ class Client(object):
             # send update status to server if we're running
             if self.stream.isRunning():
                 self.listener.print_status()
-                # sm.putUpdate(
-                #   listener.received,
-                #   listener.total,
-                #   listener.rate
-                #  )
                 self.sm.pingServer(self.listener.total, self.listener.rate)
 
                 do_update = False
@@ -413,8 +545,11 @@ if __name__ == "__main__":
     print client_id
     print type(client_id)
 
-    # create the server messenger
+    # configure the server messenger
 
+
+
+    # create the server messenger
     client = Client(
         base_url,
         auth_token,

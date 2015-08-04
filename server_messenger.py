@@ -3,9 +3,13 @@
 
 import requests
 import logging
+from datetime import timedelta
 from decimal import Decimal, ROUND_DOWN
+from ..utils.cache_decorators import cached_function_ttl
 
 log = logging.getLogger(__name__)
+
+
 
 
 
@@ -97,6 +101,9 @@ class ServerMessenger(object):
         return self.request("PATCH", endpoint, data=data)
 
 
+    # this isn't the best way to do this
+    # this is hardcoded :\
+    @cached_function_ttl(timedelta(seconds=3))
     def getStatus(self):
         """get current job status."""
 
@@ -183,6 +190,9 @@ class ServerMessenger(object):
         pass
 
 
+    # this cached function decorator is not the right approach
+    # this should be configurable
+    @cached_function_ttl(timedelta(seconds=3))
     def getActiveJobs(self):
         """request the current active job for the client."""
         endpoint = "activejobs/"
