@@ -2,11 +2,12 @@
 """Base classes for clients."""
 
 
+
 class BaseClient(object):
 
-	"""Base class for the client"""
+    """Base class for the client"""
 
-	def __init__(
+    def __init__(
             self,
             base_url,
             token,
