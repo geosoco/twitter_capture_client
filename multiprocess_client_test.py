@@ -3,30 +3,32 @@
 
 import argparse
 import logging
-import time
 import logging.config
 from multiprocessing import freeze_support
 from clients.multiprocess import MultiprocessClientBase
-import signal
 
 from configfile import ConfigFile
-import functools
 import exceptions
-
-
-
 
 
 #
 # configure basic logger
 #
 
-logging.basicConfig(
-    format='%(asctime)-15s %(processName)s %(levelname)s %(message)s',
-    level=logging.DEBUG)
+def configure_logging(config=None):
+    if config is not None:
+        logging.config.dictConfig(config)
+    else:
+        # set up some default logging options
+        logging.basicConfig(
+            format=("%(asctime)-15s %(processName) %(levelname)s|"
+                    "%(name)s| %(message)s"),
+            level=logging.DEBUG
+        )
 
 
-log = logging.getLogger("main")
+
+log = None
 
 
 #
@@ -45,6 +47,7 @@ def on_signal(client, sig, stack):
 if __name__ == "__main__":
     freeze_support()
 
+    # handle arguments
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--configfile",
@@ -56,17 +59,27 @@ if __name__ == "__main__":
     # config file
     config = ConfigFile(args.configfile)
 
-
     # configure the logging
-    if "logging" in config:
-        logging.config.dictConfig(config["logging"])
+    logging_config = config.getValue(
+        "client.logging",
+        default=None,
+        alternate_paths=["logging"])
+
+    # set up the config
+    configure_logging(logging_config)
+
+    # create our log
+    log = logging.getLogger("main")
 
 
     # create and run client
     try:
-        client = MultiprocessClientBase(None, None, config)
+        client = MultiprocessClientBase(
+            None,
+            None,
+            config)
         client.run()
-    except  exceptions.KeyboardInterrupt, e:
+    except exceptions.KeyboardInterrupt, e:
         log.info("keyboard interrupt")
         client.stop_process()
         log.info("stopping")
@@ -80,8 +93,6 @@ if __name__ == "__main__":
     # signal.signal(signal.SIGTERM, signal_handler)
     # signal.signal(signal.SIGKILL, on_interrupt)
 
-
-
-    
-
     log.debug("exiting")
+else:
+    configure_logging()
