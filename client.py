@@ -12,7 +12,7 @@ import signal
 
 from listeners.file import RotatingFileListener
 from configfile import ConfigFile
-from server_messenger import ServerMessenger
+from server_messenger import ServerMessenger, CaptureStatus
 from streamer import Streamer
 
 
@@ -51,58 +51,6 @@ def on_interrupt(sig, stack):
     log.info("set running to false (%s)", running)
 
 
-
-
-
-class CaptureStatus(object):
-
-    """ Server status wrapper"""
-
-    STATUS_UNKNOWN = 0
-    STATUS_CREATED = 1
-    STATUS_STARTING = 2
-    STATUS_STARTED = 3
-    STATUS_STOPPING = 4
-    STATUS_STOPPED = 5
-    STATUS_UNRESPONSIVE = 6
-    STATUS_DEAD = 7
-
-    status_names = {
-        0: "STATUS_UNKNOWN",
-        1: "STATUS_CREATED",
-        2: "STATUS_STARTING",
-        3: "STATUS_STARTED",
-        4: "STATUS_STOPPING",
-        5: "STATUS_STOPPED",
-        6: "STATUS_UNRESPONSIVE",
-        7: "STATUS_DEAD"
-    }
-
-    @staticmethod
-    def isRunning(status):
-        """return true if status is running"""
-        return (status == STATUS_STARTED or status == STATUS_STARTING)
-
-    @staticmethod
-    def isStopped(status):
-        """return true if status is stopped"""
-        return (not (status == STATUS_STARTED or status == STATUS_STARTING))
-
-    def __init__(self, status):
-        self.status = status
-
-    @property
-    def running(self):
-        """return true if status is starting or started"""
-        return CaptureStatus.isRunning(self.status)
-
-    @property
-    def stopped(self):
-        """ return true if status is not starting or started"""
-        return CaptureStatus.isStopped(self.status)
-
-
-    def 
 
 
 
@@ -146,6 +94,11 @@ class JobChecker(object):
 
     def getActiveJob(self):
         return self.requestActiveJob()
+
+
+
+
+
 
 
 class TermChecker(object):
@@ -297,7 +250,7 @@ class Client(object):
             return
 
         # old state defaults
-        old_status = STATUS_UNKNOWN
+        old_status = CaptureStatus(CaptureStatus.STATUS_UNKNOWN)
 
         # initialize keyword details
         term_checker = TermChecker(self.server_messenger)
@@ -329,7 +282,7 @@ class Client(object):
 
 
 
-            # look for archived date
+            # look for archived date and bail immediately
             archived_date = status_msg["archived_date"]
             if archived_date is not None:
                 continue
@@ -342,7 +295,7 @@ class Client(object):
             # has the status changed?
             if old_status != status:
                 self.log.info("changing status#1 %d -> %d", old_status, status)
-                if status == STATUS_STARTING or status == STATUS_STARTED:
+                if status.isRunning():
                     if not self.stream.isRunning():
                         self.log.info("Starting stream")
                         self.stream.track_list = term_checker.terms
@@ -352,7 +305,7 @@ class Client(object):
                         self.stream.start()
                         # ackknowledge that we have the newest keywords in here
                         term_checker.resetTermsChanged()
-                elif status == STATUS_STOPPING or status == STATUS_STOPPED:
+                elif status.isStopped():
                     if self.stream.isRunning():
                         self.log.info("Stopping stream")
                         self.stream.stop()
@@ -370,7 +323,7 @@ class Client(object):
             sleep(self.ping_interval)
 
             # new status
-            new_status = STATUS_UNKNOWN
+            new_status = CaptureStatus(STATUS_UNKNOWN)
             if self.stream.isRunning():
                 self.log.debug("stream exists and is running")
                 if status != STATUS_STOPPING:
@@ -447,6 +400,7 @@ class Client(object):
 
 
 
+
     def run(self):
         """Start up the client running machine."""
 
@@ -490,8 +444,20 @@ if __name__ == "__main__":
 
 
     # configure the logging
-    if "logging" in config:
-        logging.config.dictConfig(config["logging"])
+    logging_config = config.getValue(
+        "client.logging",
+        defaultValue=None,
+        alternatePaths="logging")
+
+
+    import json
+    print repr(logging_config)
+    print "\n" * 4
+    print json.dumps(logging_config, index=2)
+    quit()
+
+    if logging_config is not None:
+        logging.config.dictConfig(logging_config)
     else:
         # set up some default logging options
         logging.basicConfig(

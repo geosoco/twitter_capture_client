@@ -5,15 +5,87 @@ import requests
 import logging
 from datetime import timedelta
 from decimal import Decimal, ROUND_DOWN
-from ..utils.cache_decorators import cached_function_ttl
+from utils.cache_decorators import cached_function_ttl
 
 log = logging.getLogger(__name__)
 
 
+#
+#
+#
+#
+#
+class CaptureStatus(object):
+
+    """ Server status wrapper"""
+
+    STATUS_UNKNOWN = 0
+    STATUS_CREATED = 1
+    STATUS_STARTING = 2
+    STATUS_STARTED = 3
+    STATUS_STOPPING = 4
+    STATUS_STOPPED = 5
+    STATUS_UNRESPONSIVE = 6
+    STATUS_DEAD = 7
+
+    status_names = {
+        0: "STATUS_UNKNOWN",
+        1: "STATUS_CREATED",
+        2: "STATUS_STARTING",
+        3: "STATUS_STARTED",
+        4: "STATUS_STOPPING",
+        5: "STATUS_STOPPED",
+        6: "STATUS_UNRESPONSIVE",
+        7: "STATUS_DEAD"
+    }
+
+    @staticmethod
+    def isRunning(status):
+        """return true if status is running"""
+        return (status == CaptureStatus.STATUS_STARTED or
+                status == CaptureStatus.STATUS_STARTING)
+
+    @staticmethod
+    def isStopped(status):
+        """return true if status is stopped"""
+        return (not (
+            status == CaptureStatus.STATUS_STARTED or
+            status == CaptureStatus.STATUS_STARTING))
+
+    def __init__(self, status):
+        self.status = status
+
+    @property
+    def running(self):
+        """return true if status is starting or started"""
+        return CaptureStatus.isRunning(self.status)
+
+    @property
+    def stopped(self):
+        """ return true if status is not starting or started"""
+        return CaptureStatus.isStopped(self.status)
+
+    @property
+    def value(self):
+        return self.status
+
+    def __str__(self):
+        if self.status in self.status_names:
+            return "%s (%d)" % (self.status_names[self.status], self.status)
+        return "<<INVALID STATUS (%d)>>" % (self.status)
+
+    def __repr__(self):
+        return str(self)
+
+    def __unicode__(self):
+        return unicode(str(self))
 
 
-
-
+#
+#
+#
+#
+#
 class ServerMessenger(object):
 
     """Wrapper class for messaging with the server."""
