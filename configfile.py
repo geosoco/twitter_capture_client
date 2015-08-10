@@ -2,18 +2,22 @@
 """This is a simple json config file module."""
 
 import simplejson as json
+import copy
 
 
 class ConfigFile(object):
 
     """Simple JSON config file class."""
 
-    def __init__(self, filename):
+    def __init__(self, filename=None, config_data=None):
         """initialize data and call to load the data."""
         self.filename = filename
-        self.config_data = {}
+        self.config_data = {} if config_data is None else config_data
 
-        self.loadConfig(self.filename)
+        if filename is not None:
+            self.loadConfig(self.filename)
+
+        self.extend(self.config_data)
 
 
     def loadConfig(self, filename):
@@ -21,31 +25,101 @@ class ConfigFile(object):
         with open(filename) as f:
             self.config_data = json.load(f)
 
+    def dict_merge(self, target, base):
+        for k, v in base.iteritems():
+            target_exists = k in target
 
-    def getValue(self, path, defaultValue=None):
+            # if it doesn't exist clone it
+            if not target_exists:
+                target[k] = copy.deepcopy(v)
+            elif isinstance(v, dict):
+                # merging is necessary
+                target_val = target.get(k, None)
+                if isinstance(target_val, dict) or target_val is None:
+                    self.dict_merge(v, target_val)
+                else:
+                    raise Exception(
+                        "source value is not a dict but target is.")
+
+
+    def extend(self, branch=None, path=None):
+        """extend settings"""
+        print "[%s]" % (path)
+        branch = (
+            branch if branch is not None else self.config_data)
+
+        base_path = branch.get("_extend", None)
+        if base_path is not None:
+            print "  extending %s with %s" % (path, base_path)
+            base_dict = self.getValue(base_path, {})
+            if "_extend" in base_dict:
+                self.extend(base_dict)
+            self.dict_merge(branch, base_dict)
+            branch.pop("_extend", None)
+
+
+        for k, v in branch.iteritems():
+
+            if isinstance(v, dict):
+                print "  ++ %s" % (k)
+                #print "    %s" % (repr(v))
+                new_path = k if path is None else "%s.%s" % (path, k)
+                self.extend(branch=v, path=new_path)
+
+
+    def getValue(self, path, default=None, alternate_paths=None):
         """
         get a value from the config data.
 
-        can also take a path using the period as a separator
-        eg "first.second.third"
+        `path` is a single string representing a list of keys 
+        as a period-separated path to the value. eg. "first.second.third"
+        will grab the value from:
+
+        {
+            "first": {
+                "second": {
+                    "third": 42
+                }
+            }
+        }
+
+        `alternate_paths` is a list of possible paths to also look
+
         """
 
         if not path:
             return None
 
-        parts = path.split(".")
-        num_parts = len(parts)
-        cur_dict = self.config_data
+        print "paths: ", path
 
-        try:
-            for i in range(0, num_parts - 1):
-                part = parts[i]
-                print part
-                cur_dict = cur_dict[part]
+        # create a full list of paths to check
+        path_list = [path]
+        if alternate_paths is not None:
+            path_list.extend(alternate_paths)
 
-            return cur_dict[parts[num_parts - 1]]
-        except KeyError:
-            return defaultValue
+        print "path list: ", repr(path_list)
+
+        # step through each path and try to process it
+        for cur_path in path_list:
+            parts = cur_path.split(".")
+            num_parts = len(parts)
+            cur_dict = self.config_data
+
+            print "  checking path: ", cur_path
+
+            # step through each part of the path
+            try:
+                for i in range(0, num_parts - 1):
+                    part = parts[i]
+                    print part
+                    cur_dict = cur_dict[part]
+
+                return cur_dict[parts[num_parts - 1]]
+            except KeyError:
+                print "  !! key error"
+                pass
+
+        return defaultValue
 
 
     def __len__(self):
