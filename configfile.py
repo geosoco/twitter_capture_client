@@ -17,7 +17,10 @@ class ConfigFile(object):
         if filename is not None:
             self.loadConfig(self.filename)
 
-        self.extend(self.config_data)
+        #extensions = self.find_extensions(self.config_data)
+        #print repr(extensions)
+
+        self.extend2(self.config_data)
 
 
     def loadConfig(self, filename):
@@ -26,52 +29,121 @@ class ConfigFile(object):
             self.config_data = json.load(f)
 
     def dict_merge(self, target, base):
+        base_copy = copy.deepcopy(base)
+        target_copy = copy.deepcopy(target)
         for k, v in base.iteritems():
             target_exists = k in target
 
             # if it doesn't exist clone it
             if not target_exists:
-                target[k] = copy.deepcopy(v)
+                target_copy[k] = copy.deepcopy(v)
+                print "copying '%s' to target" % (k)
             elif isinstance(v, dict):
                 # merging is necessary
                 target_val = target.get(k, None)
-                if isinstance(target_val, dict) or target_val is None:
-                    self.dict_merge(v, target_val)
+                if target_val is not None:
+                    if isinstance(target_val, dict):
+                        print "merging '%s'" % (k)
+                        import json
+                        print "target_val\n--------"
+                        print json.dumps(target_val, indent=4)
+                        print "base\n--------"
+                        print json.dumps(v, indent=4)
+                        merged = self.dict_merge(target_val, base[k])
+                        print "merged\n--------"
+                        print json.dumps(merged, indent=4)
+                        target_copy[k] = merged
+                    else:
+                        raise Exception(
+                            "source value is not a dict but target is.")
                 else:
-                    raise Exception(
-                        "source value is not a dict but target is.")
+                    print "-- target is voiding the inheritance"
+            else:
+                print "-------[ ", k
+
+        return target_copy
 
 
-    def extend(self, branch=None, path=None):
-        """extend settings"""
-        print "[%s]" % (path)
-        branch = (
-            branch if branch is not None else self.config_data)
-
-        base_path = branch.get("_extend", None)
-        if base_path is not None:
-            print "  extending %s with %s" % (path, base_path)
-            base_dict = self.getValue(base_path, {})
-            if "_extend" in base_dict:
-                self.extend(base_dict)
-            self.dict_merge(branch, base_dict)
-            branch.pop("_extend", None)
-
+    def find_extensions(self, branch, path=None):
+        ret = []
 
         for k, v in branch.iteritems():
-
+            if k == "_extend":
+                ret.append((path, v))
             if isinstance(v, dict):
-                print "  ++ %s" % (k)
-                #print "    %s" % (repr(v))
                 new_path = k if path is None else "%s.%s" % (path, k)
-                self.extend(branch=v, path=new_path)
+                ret.extend(self.find_extensions(v, new_path))
+
+        return ret
+
+
+
+    def extend(self, branch=None):
+        """extend settings"""
+
+        extensions = self.find_extensions(self.config_data)
+        for pair in extensions:
+            print "extending %s with %s" % (pair[0], pair[1])
+            target_dict = self.getValue(pair[0])
+            base_dict = self.getValue(pair[1])
+
+            # find parent entry
+            path_array = self.breakPath(pair[0])
+            parent_dict = self.getParentValue(pair[1])
+
+            target_dict = self.dict_merge(target_dict, base_dict)
+
+
+
+
+    def breakPath(self, path):
+        """ splits a config path into an array """
+        return [] if path is None else path.split(".")
+
+
+
+    def getNestedValue(self, path_array, default=None):
+        """ gets value from a nested value """
+        # step through each path and try to process it
+        for cur_path in path_array:
+            parts = cur_path.split(".")
+            num_parts = len(parts)
+            cur_dict = self.config_data
+
+            # step through each part of the path
+            try:
+                for i in range(0, num_parts - 1):
+                    part = parts[i]
+                    print part
+                    cur_dict = cur_dict[part]
+
+                return cur_dict[parts[num_parts - 1]]
+            except KeyError:
+                print "  !! key error"
+                pass
+
+        return default
+
+    def getParentValue(self, path, default=None):
+        """ gets the parent of the path """
+        if path is None:
+            return default
+
+        # split the path and pop the last entry
+        path_array = self.breakPath(path)
+        if path_array is not None and len(path_array):
+            path_array.pop()
+        else:
+            return default
+
+        return self.getNestedValue(path_array, default)
 
 
     def getValue(self, path, default=None, alternate_paths=None):
         """
         get a value from the config data.
 
-        `path` is a single string representing a list of keys 
+        `path` is a single string representing a list of keys
         as a period-separated path to the value. eg. "first.second.third"
         will grab the value from:
 
@@ -97,29 +169,28 @@ class ConfigFile(object):
         if alternate_paths is not None:
             path_list.extend(alternate_paths)
 
-        print "path list: ", repr(path_list)
+        return self.getNestedValue(path_list, default=default)
 
-        # step through each path and try to process it
-        for cur_path in path_list:
-            parts = cur_path.split(".")
-            num_parts = len(parts)
-            cur_dict = self.config_data
 
-            print "  checking path: ", cur_path
+    def extend2(self, branch=None):
+        """ extend  dictionary """
 
-            # step through each part of the path
-            try:
-                for i in range(0, num_parts - 1):
-                    part = parts[i]
-                    print part
-                    cur_dict = cur_dict[part]
+        # if not iterating, start with cloned root data
+        if branch is None:
+            branch = self.config_data
 
-                return cur_dict[parts[num_parts - 1]]
-            except KeyError:
-                print "  !! key error"
-                pass
+        config_copy = copy.copy(branch)
+        for k, v in config_copy.iteritems():
+            if isinstance(v, dict):
+                self.extend2(v)
 
-        return defaultValue
+                extension_path = v.get("_extend", None)
+                if extension_path is not None:
+                    base_dict = self.getValue(extension_path)
+                    branch[k] = self.dict_merge(v, base_dict)
+
+
+
 
 
     def __len__(self):
