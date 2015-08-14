@@ -3,6 +3,7 @@
 
 import logging
 
+
 class TermChecker(object):
 
     """Term Checker"""
@@ -49,6 +50,7 @@ class TermChecker(object):
 
                 self.terms_changed = True
                 self.current_terms = new_terms
+                self.current_terms_set = set(self.current_terms)
 
 
 
@@ -59,7 +61,7 @@ class TermChecker(object):
 
     def resetTermsChanged(self):
         """return true if terms have changed"""
-        pass
+        self.terms_changed = False
 
     @property
     def terms(self):
