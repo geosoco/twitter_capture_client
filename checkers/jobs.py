@@ -9,8 +9,8 @@ class JobChecker(object):
     """Wrapper class for checking jobs"""
 
 
-    def __init__(self, server_manager):
-        self.server_manager = server_manager
+    def __init__(self, server_messenger):
+        self.server_messenger = server_messenger
         self.active_job = None
         self.active_job_id = None
         self.log = logging.getLogger(self.__class__.__name__)
@@ -19,8 +19,8 @@ class JobChecker(object):
     def configure(self, config):
         pass
 
-    def requestActiveJob(self):
-        active_jobs = self.sm.getActiveJobs()
+    def requestFirstActiveJob(self):
+        active_jobs = self.server_messenger.getActiveJobs()
 
         # if we got active jobs back...
         if active_jobs is not None:
@@ -42,5 +42,27 @@ class JobChecker(object):
         return None
 
 
-    def getActiveJob(self):
-        return self.requestActiveJob()
+    def getFirstActiveJob(self):
+        return self.requestFirstActiveJob()
+
+    def activateJob(self, job):
+        if job is None:
+            self.log.error("attempt to activate job that is None.")
+            return
+
+        self.active_job = job
+        self.active_job_id = job["id"]
+        self.server_messenger.active_job_id = self.active_job_id
+
+    def deactivateJob(self):
+        self.active_job = None
+        self.active_job_id = None
+        self.server_messenger.active_job_id = None
+
+    def getActiveJobId(self):
+        return self.active_job_id
+
+    @property
+    def activeJob(self):
+        return self.active_job
+
