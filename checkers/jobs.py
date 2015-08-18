@@ -65,4 +65,3 @@ class JobChecker(object):
     @property
     def activeJob(self):
         return self.active_job
-
