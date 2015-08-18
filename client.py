@@ -54,46 +54,6 @@ def on_interrupt(sig, stack):
 
 
 
-class JobChecker(object):
-
-    """Wrapper class for checking jobs"""
-
-
-    def __init__(self, server_manager):
-        self.server_manager = server_manager
-        self.active_job = None
-        self.active_job_id = None
-        pass
-
-
-    def configure(self, config):
-        pass
-
-    def requestActiveJob(self):
-        active_jobs = self.sm.getActiveJobs()
-
-        # if we got active jobs back...
-        if active_jobs is not None:
-            count = active_jobs["count"]
-
-            # if we get results
-            if count > 0:
-                # we should never get more than one, so warn
-                if count > 1:
-                    self.log.warn(
-                        "more than one active_job. got %d for id %d",
-                        count,
-                        self.client_id
-                    )
-                    self.log.warn(active_jobs)
-
-                return active_jobs["results"][0]
-        # mass failure
-        return None
-
-
-    def getActiveJob(self):
-        return self.requestActiveJob()
 
 
 
@@ -101,67 +61,8 @@ class JobChecker(object):
 
 
 
-class TermChecker(object):
-
-    """Term Checker"""
-
-    def __init__(self, server_messenger):
-        """Initialize the termchecker."""
-        self.server_messenger = server_messenger
-
-        self.current_terms = []
-        self.current_terms_set = set()
-
-        self.terms_changed = False
-
-        self.log = logging.getLogger("TermChecker")
-
-    def configure(self, config):
-        """configure the term checker."""
-        pass
-
-    def requestTerms(self):
-        """request terms from server. used internally."""
-
-        status_msg = self.server_messenger.getStatus()
-        keywords = status_msg.get('twitter_keywords', None)
-        return (
-            [kw.strip() for kw in
-                keywords.split(",")]
-            if keywords else None)
-
-    def checkTerms(self):
-        """check and update flags based on terms."""
-
-        # request new terms from server
-        new_terms = self.requestTerms()
-        new_terms_set = set(new_terms)
-
-        # detail what type of differences
-        if new_terms_set != self.current_terms_set:
-                self.log.info("twitter filter words changed: ")
-                subtractions = self.current_terms_set - new_terms_set
-                additions = new_terms_set - self.current_terms_set
-                self.log.info("    + : %s", repr(additions))
-                self.log.info("    - : %s", repr(subtractions))
-
-                self.terms_changed = True
-                self.current_terms = new_terms
 
 
-
-
-    def haveTermsChanged(self):
-        """return true if terms have changed"""
-        return self.terms_changed
-
-    def resetTermsChanged(self):
-        """return true if terms have changed"""
-        pass
-
-    @property
-    def terms(self):
-        return self.current_terms
 
 
 
