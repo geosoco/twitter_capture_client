@@ -10,6 +10,12 @@ from clients.multiprocess import MultiprocessClientBase
 from configfile import ConfigFile
 import exceptions
 
+#
+# global
+#
+
+log = None
+
 
 #
 # configure basic logger
@@ -25,10 +31,6 @@ def configure_logging(config=None):
                     "%(name)s| %(message)s"),
             level=logging.DEBUG
         )
-
-
-
-log = None
 
 
 #
@@ -66,6 +68,12 @@ if __name__ == "__main__":
         alternate_paths=["logging"])
 
     # set up the config
+    # import json
+    # import pprint
+    # print json.dumps(logging_config, indent=4)
+    # print "-" * 20
+
+    #pprint.pprint(logging_config, indent=2)
     configure_logging(logging_config)
 
     # create our log
@@ -74,10 +82,7 @@ if __name__ == "__main__":
 
     # create and run client
     try:
-        client = MultiprocessClientBase(
-            None,
-            None,
-            config)
+        client = MultiprocessClientBase(config)
         client.run()
     except exceptions.KeyboardInterrupt, e:
         log.info("keyboard interrupt")
