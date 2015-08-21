@@ -11,6 +11,36 @@ import simplejson as json
 log = logging.getLogger(__name__)
 
 
+class ListenerStats(object):
+
+    """Stats class for the listener."""
+
+    def __init__(self, initial_total=0):
+        """initialize the stats counter."""
+        self.received = 0
+        self.total = initial_total
+        self.since = time()
+        self.rate = 0
+
+    def increment(self, amount=1):
+        """increment the current received and total counts."""
+        self.received += amount
+        self.total += amount
+
+    def calculate_rate(self):
+        """calculate the current rate and reset counter."""
+        now = time()
+        diff = now - self.since
+        # if there's a difference, calculate it
+        if diff > 0:
+            self.since = now
+            self.rate = (self.received / diff) if diff > 0 else 0
+            self.received = 0
+
+    def __str__(self):
+        return "Total: %d (Rate %s)" % (self.total, self.rate)
+
+
 class BaseListener(StreamListener):
 
     """Base listener that implements some counting mechanisms."""
@@ -19,13 +49,15 @@ class BaseListener(StreamListener):
         """Construct base listener for tweepy."""
         super(BaseListener, self).__init__(api)
         self.terminate = False
-        self.received = 0
-        self.total = 0
-        self.since = time()
-        self.rate = 0
         self.connected = False
         self.error = False
+        self.stats = ListenerStats(0)
+        self.data_callback = None
         log.debug("BaseListener constructed")
+
+    def shutdown(self):
+        """shutdown the listener."""
+        pass
 
     def on_connect(self):
         """handle on_connect event."""
@@ -42,7 +74,7 @@ class BaseListener(StreamListener):
 
     def on_error(self, status_code):
         """handle on_error event."""
-        super(BaseListener, self).on_error()
+        super(BaseListener, self, status_code).on_error()
         self.connected = False
         self.error = True
         log.error("stream error: %s", status_code)
@@ -101,12 +133,22 @@ class BaseListener(StreamListener):
         else:
             log.error("Unknown message type: " + str(raw_data))
 
+        if self.error or not self.connected:
+            log.info(
+                "listener returning false (%s,%s)",
+                self.error,
+                self.connected)
+            return False
+
+        if self.data_callback:
+            return self.data_callback(self.stats)
+
+        return True
 
 
     def on_status(self, status, raw_data):
         """handle on_status event."""
-        self.received += 1
-        self.total += 1
+        self.stats.increment()
         return not self.terminate
 
 
@@ -137,16 +179,17 @@ class BaseListener(StreamListener):
         log.warn("stream warning: %s", warning)
         return not self.terminate
 
+    def on_timeout(self):
+        log.error("timeout occurred")
+        self.connected = False
+        self.error = True
+        return not self.terminate
+
     def set_terminate(self):
         """Notify the tweepy stream that it should quit."""
         self.terminate = True
 
     def print_status(self):
         """Log the current tweet rate and reset the counter."""
-        tweets = self.received
-        now = time()
-        diff = now - self.since
-        self.since = now
-        self.received = 0
-        self.rate = (tweets / diff) if diff > 0 else 0
-        log.info("Receiving tweets at %s tps", self.rate)
+        self.stats.calculate_rate()
+        log.info("Receiving tweets at %s tps", str(self.stats))
