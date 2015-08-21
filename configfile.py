@@ -37,29 +37,29 @@ class ConfigFile(object):
             # if it doesn't exist clone it
             if not target_exists:
                 target_copy[k] = copy.deepcopy(v)
-                print "copying '%s' to target" % (k)
+                #print "copying '%s' to target" % (k)
             elif isinstance(v, dict):
                 # merging is necessary
                 target_val = target.get(k, None)
                 if target_val is not None:
                     if isinstance(target_val, dict):
-                        print "merging '%s'" % (k)
-                        import json
-                        print "target_val\n--------"
-                        print json.dumps(target_val, indent=4)
-                        print "base\n--------"
-                        print json.dumps(v, indent=4)
+                        #print "merging '%s'" % (k)
+                        #import json
+                        #print "target_val\n--------"
+                        #print json.dumps(target_val, indent=4)
+                        #print "base\n--------"
+                        #print json.dumps(v, indent=4)
                         merged = self.dict_merge(target_val, base[k])
-                        print "merged\n--------"
-                        print json.dumps(merged, indent=4)
+                        #print "merged\n--------"
+                        #print json.dumps(merged, indent=4)
                         target_copy[k] = merged
                     else:
                         raise Exception(
                             "source value is not a dict but target is.")
-                else:
-                    print "-- target is voiding the inheritance"
-            else:
-                print "-------[ ", k
+                #else:
+                #    print "-- target is voiding the inheritance"
+            #else:
+            #    print "-------[ ", k
 
         return target_copy
 
@@ -83,7 +83,7 @@ class ConfigFile(object):
 
         extensions = self.find_extensions(self.config_data)
         for pair in extensions:
-            print "extending %s with %s" % (pair[0], pair[1])
+            #print "extending %s with %s" % (pair[0], pair[1])
             target_dict = self.getValue(pair[0])
             base_dict = self.getValue(pair[1])
 
@@ -114,12 +114,12 @@ class ConfigFile(object):
             try:
                 for i in range(0, num_parts - 1):
                     part = parts[i]
-                    print part
+                    #print part
                     cur_dict = cur_dict[part]
 
                 return cur_dict[parts[num_parts - 1]]
             except KeyError:
-                print "  !! key error"
+                #print "  !! key error"
                 pass
 
         return default
@@ -162,7 +162,7 @@ class ConfigFile(object):
         if not path:
             return None
 
-        print "paths: ", path
+        #print "paths: ", path
 
         # create a full list of paths to check
         path_list = [path]
