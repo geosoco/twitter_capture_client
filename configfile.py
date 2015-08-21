@@ -17,10 +17,7 @@ class ConfigFile(object):
         if filename is not None:
             self.loadConfig(self.filename)
 
-        #extensions = self.find_extensions(self.config_data)
-        #print repr(extensions)
-
-        self.extend2(self.config_data)
+        self.extend(self.config_data)
 
 
     def loadConfig(self, filename):
@@ -29,7 +26,6 @@ class ConfigFile(object):
             self.config_data = json.load(f)
 
     def dict_merge(self, target, base):
-        base_copy = copy.deepcopy(base)
         target_copy = copy.deepcopy(target)
         for k, v in base.iteritems():
             target_exists = k in target
@@ -37,69 +33,18 @@ class ConfigFile(object):
             # if it doesn't exist clone it
             if not target_exists:
                 target_copy[k] = copy.deepcopy(v)
-                #print "copying '%s' to target" % (k)
             elif isinstance(v, dict):
                 # merging is necessary
                 target_val = target.get(k, None)
                 if target_val is not None:
                     if isinstance(target_val, dict):
-                        #print "merging '%s'" % (k)
-                        #import json
-                        #print "target_val\n--------"
-                        #print json.dumps(target_val, indent=4)
-                        #print "base\n--------"
-                        #print json.dumps(v, indent=4)
                         merged = self.dict_merge(target_val, base[k])
-                        #print "merged\n--------"
-                        #print json.dumps(merged, indent=4)
                         target_copy[k] = merged
                     else:
                         raise Exception(
                             "source value is not a dict but target is.")
-                #else:
-                #    print "-- target is voiding the inheritance"
-            #else:
-            #    print "-------[ ", k
 
         return target_copy
-
-
-    def find_extensions(self, branch, path=None):
-        ret = []
-
-        for k, v in branch.iteritems():
-            if k == "_extend":
-                ret.append((path, v))
-            if isinstance(v, dict):
-                new_path = k if path is None else "%s.%s" % (path, k)
-                ret.extend(self.find_extensions(v, new_path))
-
-        return ret
-
-
-
-    def extend(self, branch=None):
-        """extend settings"""
-
-        extensions = self.find_extensions(self.config_data)
-        for pair in extensions:
-            #print "extending %s with %s" % (pair[0], pair[1])
-            target_dict = self.getValue(pair[0])
-            base_dict = self.getValue(pair[1])
-
-            # find parent entry
-            path_array = self.breakPath(pair[0])
-            parent_dict = self.getParentValue(pair[1])
-
-            target_dict = self.dict_merge(target_dict, base_dict)
-
-
-
-
-    def breakPath(self, path):
-        """ splits a config path into an array """
-        return [] if path is None else path.split(".")
-
 
 
     def getNestedValue(self, path_array, default=None):
@@ -114,29 +59,14 @@ class ConfigFile(object):
             try:
                 for i in range(0, num_parts - 1):
                     part = parts[i]
-                    #print part
                     cur_dict = cur_dict[part]
 
                 return cur_dict[parts[num_parts - 1]]
             except KeyError:
-                #print "  !! key error"
                 pass
 
         return default
 
-    def getParentValue(self, path, default=None):
-        """ gets the parent of the path """
-        if path is None:
-            return default
-
-        # split the path and pop the last entry
-        path_array = self.breakPath(path)
-        if path_array is not None and len(path_array):
-            path_array.pop()
-        else:
-            return default
-
-        return self.getNestedValue(path_array, default)
 
 
     def getValue(self, path, default=None, alternate_paths=None):
@@ -162,8 +92,6 @@ class ConfigFile(object):
         if not path:
             return None
 
-        #print "paths: ", path
-
         # create a full list of paths to check
         path_list = [path]
         if alternate_paths is not None:
@@ -172,7 +100,7 @@ class ConfigFile(object):
         return self.getNestedValue(path_list, default=default)
 
 
-    def extend2(self, branch=None):
+    def extend(self, branch=None):
         """ extend  dictionary """
 
         # if not iterating, start with cloned root data
@@ -182,7 +110,7 @@ class ConfigFile(object):
         config_copy = copy.copy(branch)
         for k, v in config_copy.iteritems():
             if isinstance(v, dict):
-                self.extend2(v)
+                self.extend(v)
 
                 extension_path = v.get("_extend", None)
                 if extension_path is not None:
