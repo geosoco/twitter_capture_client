@@ -66,7 +66,7 @@ class RotatingOutFile(object):
             self.cur_name = filename
 
             # open the file
-            self.file = open(self.cur_name, "w")
+            self.file = open(self.cur_name, "w+")
 
         finally:
             # release the lock
