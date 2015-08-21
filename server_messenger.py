@@ -69,6 +69,10 @@ class CaptureStatus(object):
     def value(self):
         return self.status
 
+    @value.setter
+    def value(self, val):
+        self.status = val
+
     def __str__(self):
         if self.status in self.status_names:
             return "%s (%d)" % (self.status_names[self.status], self.status)
@@ -80,6 +84,14 @@ class CaptureStatus(object):
     def __unicode__(self):
         return unicode(str(self))
 
+    def __eq__(self, other):
+        if isinstance(other, CaptureStatus):
+            return self.status == other.status
+        else:
+            return self.status == other
+
+    def __ne__(self, other):
+        return not (self == other)
 
 #
 #
@@ -94,16 +106,16 @@ class ServerMessenger(object):
         """initialize the server messenger."""
         self.base_url = base_url
         self.token = token
-        self.active_job_id = -1
+        self.active_job_id = None
         self.headers = {
             'Authorization': 'Token %s' % (self.token)
         }
 
         # log details
-        log.debug("initializing(base_url=%s, token=%s, client_id=%d" % (
+        log.debug("initializing(base_url=%s, token=%s, client_id=%s" % (
             self.base_url,
             self.token,
-            self.active_job_id)
+            repr(self.active_job_id))
         )
         log.debug("headers (%s)" % (self.headers))
 
@@ -179,6 +191,9 @@ class ServerMessenger(object):
     def getStatus(self):
         """get current job status."""
 
+        if self.active_job_id is None:
+            return None
+
         endpoint = "jobs/%d/" % (self.active_job_id)
         return self.doSimpleJSONGet(endpoint)
 
@@ -187,10 +202,11 @@ class ServerMessenger(object):
         """update the status."""
 
         endpoint = "jobs/%d/" % (self.active_job_id)
-        resp = self.put(endpoint=endpoint, data=status_obj)
+        resp = self.doPut(endpoint=endpoint, data=status_obj)
 
         if resp is not None:
-            if resp.status_code == requests.codes.created:
+            if (resp.status_code == requests.codes.created or
+                    requests.codes.ok):
                 log.debug('server returned: %s', resp.json())
                 return resp.json()
             else:
