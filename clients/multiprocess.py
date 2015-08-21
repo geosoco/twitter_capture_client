@@ -88,7 +88,8 @@ class ClientWorker(object):
 
     """test..."""
 
-    def __init__(self, collection_name, terms, event, pipe, config_data):
+    def __init__(
+            self, collection_name, terms, event, pipe, total, config_data):
         self.log = logging.getLogger(self.__class__.__name__)
         self.collection_name = collection_name
         self.event = event
@@ -98,6 +99,7 @@ class ClientWorker(object):
         self.listener = None
         self.client = None
         self.config = ConfigFile(config_data=self.config_data)
+        self.initial_total = total
 
         self.pipe = PipeMessenger(self.raw_pipe)
 
@@ -116,6 +118,7 @@ class ClientWorker(object):
             self.dataCallback,
             (self,)
         )
+        self.listener.stats.total = self.initial_total
 
         # create client
         self.client = TwitterClient(
@@ -179,8 +182,9 @@ class ClientWorker(object):
         now = datetime.now()
         delta = now - self.last_stat_update_time
         if delta.total_seconds() > 5:
+            received = stats.received
             stats.calculate_rate()
-            self.pipe.sendUpdate(now, stats.received, stats.rate, stats.total)
+            self.pipe.sendUpdate(now, received, stats.rate, stats.total)
             self.last_stat_update_time = now
 
         return True
@@ -193,7 +197,7 @@ class ClientWorker(object):
 
 def process_worker(
         args, collection_name, event, terms, pipe,
-        config_data):
+        total, config_data):
 
     client = None
     try:
@@ -209,7 +213,7 @@ def process_worker(
 
         # create and initialize the client
         client = ClientWorker(
-            collection_name, terms, event, pipe, config_data)
+            collection_name, terms, event, pipe, total, config_data)
         client.initialize()
 
         # run the client
@@ -273,7 +277,8 @@ class MultiprocessClientBase(object):
         """build, initialize, and configure the client."""
         pass
 
-    def start_process(self, collection_name, initial_terms=None):
+    def start_process(
+            self, collection_name, initial_terms=None, initial_total=0):
         """start the separate capture process"""
         self.log.debug("starting...")
 
@@ -293,6 +298,7 @@ class MultiprocessClientBase(object):
                 "event": self.event,
                 "terms": initial_terms,
                 "pipe": self.worker_pipe,
+                "total": initial_total,
                 "config_data": self.config.config_data
             })
         # make it a daemon
@@ -314,6 +320,13 @@ class MultiprocessClientBase(object):
     def on_update(self, data):
         """receive update message"""
         self.log.debug("on update %s", repr(data))
+        self.messenger.pingServer(
+            data["total"],
+            data["rate"])
+        # self.messenger.putUpdate(
+        #    data["received"],
+        #    data["total"],
+        #    data["rate"])
 
 
     def wait_for_child(self):
@@ -443,7 +456,8 @@ class MultiprocessClientBase(object):
                     else:
                         self.start_process(
                             job_status["name"],
-                            term_checker.terms)
+                            term_checker.terms,
+                            job_status["total_count"])
                         restart_pending = False
 
             # update server status
@@ -459,7 +473,10 @@ class MultiprocessClientBase(object):
                 time.sleep(10)
 
                 term_checker.checkTerms()
-                self.start_process(job_status["name"], term_checker.terms)
+                self.start_process(
+                    job_status["name"], 
+                    term_checker.terms,
+                    job_status["total_count"])
                 term_checker.resetTermsChanged()
 
                 restart_pending = False
