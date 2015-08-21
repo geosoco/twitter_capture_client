@@ -25,6 +25,11 @@ class FileListener(BaseListener):
             self.collection_name,
             self.collection_name)
 
+    def shutdown(self):
+        """shutdown the listener."""
+        if self.file is not None:
+            self.file.close()
+
     def on_connect(self):
         """handle connect message."""
         super(FileListener, self).on_connect()
@@ -69,6 +74,10 @@ class RotatingFileListener(BaseListener):
             collection_name=self.collection_name
         )
 
+    def shutdown(self):
+        """shutdown the listener."""
+        if self.file is not None:
+            self.file.end_file()
 
     def on_connect(self):
         """handle connect message."""
