@@ -65,8 +65,10 @@ class SourceAddrStreamer(tweepy.Stream):
         """make sure to call disconnected."""
         super(SourceAddrStreamer, self).on_closed(resp)
 
+
+        self.disconnected = True
         if self.running is True:
-            self.disconnected()
+            self.disconnect()
 
 
 
@@ -126,7 +128,7 @@ class Streamer(object):
                 timeout=90,
                 retry_count=5)
 
-            self.stream.filter(track=self.track_list, async=True)
+            self.stream.filter(track=self.track_list)
 
 
 
