@@ -99,7 +99,7 @@ class ClientWorker(object):
         self.listener = None
         self.client = None
         self.config = ConfigFile(config_data=self.config_data)
-        self.initial_total = total
+        self.initial_total = total if total is not None else 0
 
         self.pipe = PipeMessenger(self.raw_pipe)
 
@@ -218,6 +218,7 @@ def process_worker(
 
         # run the client
         client.run()
+        # profiling code below, first uncomment line above:
         # cProfile.runctx(
         #    "client.run()",
         #    globals(),
