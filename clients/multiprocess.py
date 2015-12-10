@@ -16,6 +16,8 @@ from listeners.file import RotatingFileListener
 
 from clients.twitter import TwitterClient
 
+import simplejson as json
+
 
 class PipeMessenger(object):
     """ Wrapper for pipe communication """
@@ -321,13 +323,13 @@ class MultiprocessClientBase(object):
     def on_update(self, data):
         """receive update message"""
         self.log.debug("on update %s", repr(data))
-        # self.messenger.pingServer(
-        #    data["total"],
-        #    data["rate"])
-        self.messenger.putUpdate(
-            data["received"],
+        self.messenger.pingServer(
             data["total"],
             data["rate"])
+        #self.messenger.putUpdate(
+        #    data["received"],
+        #    data["total"],
+        #    data["rate"])
 
 
     def wait_for_child(self):
@@ -423,6 +425,7 @@ class MultiprocessClientBase(object):
 
             # check status
             job_status = self.messenger.getStatus()
+            self.log.debug("Job status: %s", json.dumps(job_status))
             if job_status is None:
                 continue
 
@@ -471,11 +474,10 @@ class MultiprocessClientBase(object):
             if restart_pending:
                 self.log.info("restarting...")
                 self.stop_process()
-                time.sleep(10)
 
                 term_checker.checkTerms()
                 self.start_process(
-                    job_status["name"], 
+                    job_status["name"],
                     term_checker.terms,
                     job_status["total_count"])
                 term_checker.resetTermsChanged()
