@@ -74,7 +74,7 @@ class BaseListener(StreamListener):
 
     def on_error(self, status_code):
         """handle on_error event."""
-        super(BaseListener, self, status_code).on_error()
+        super(BaseListener, self).on_error(status_code)
         self.connected = False
         self.error = True
         log.error("stream error: %s", status_code)
