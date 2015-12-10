@@ -255,6 +255,20 @@ class ServerMessenger(object):
 
         endpoint = "update/"
         resp = self.doPost(endpoint=endpoint, data=update_msg)
+
+        if resp is not None:
+            if (resp.status_code == requests.codes.created or
+                    requests.codes.ok):
+                log.debug('server returned on putUpdate: %s', resp.json())
+                return resp.json()
+            else:
+                log.error(
+                    "server return error code on putUpdate: %d",
+                    resp.status_code)
+        else:
+            log.error("putUpdate returned None")
+
+
         return resp
 
 
@@ -270,6 +284,20 @@ class ServerMessenger(object):
 
         endpoint = "jobs/%d/" % (self.active_job_id)
         resp = self.doPatch(endpoint=endpoint, data=update_msg)
+
+        if resp is not None:
+            if (resp.status_code == requests.codes.created or
+                    requests.codes.ok):
+                log.debug('server returned on pingServer: %s', resp.json())
+                return resp.json()
+            else:
+                log.error(
+                    "server return error code on pingServer: %d",
+                    resp.status_code)
+        else:
+            log.error("pingServer returned None")
+
+
         return resp
 
 
