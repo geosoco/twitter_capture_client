@@ -170,7 +170,6 @@ class BaseListener(StreamListener):
 
     def on_limit(self, limit, data, raw_data):
         """handle limited data"""
-        log.warn("limit for %s", limit)
         log.debug("limit: %s", repr(data))
         return not self.terminate
 

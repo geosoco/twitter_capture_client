@@ -321,13 +321,13 @@ class MultiprocessClientBase(object):
     def on_update(self, data):
         """receive update message"""
         self.log.debug("on update %s", repr(data))
-        self.messenger.pingServer(
-            data["total"],
-            data["rate"])
-        # self.messenger.putUpdate(
-        #    data["received"],
+        # self.messenger.pingServer(
         #    data["total"],
         #    data["rate"])
+        self.messenger.putUpdate(
+            data["received"],
+            data["total"],
+            data["rate"])
 
 
     def wait_for_child(self):

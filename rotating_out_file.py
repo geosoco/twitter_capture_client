@@ -109,16 +109,31 @@ class RotatingOutFile(object):
             finished_filename = self.cur_name
 
             if finished_filename is not None:
+                # strip off the temporary extension
                 if (self.temporary_extension and
                         finished_filename.endswith(self.temporary_extension)):
                     temp_ext_length = len(self.temporary_extension)
                     finished_filename = finished_filename[:-temp_ext_length]
 
+                # check if the file already exists (os.rename can clobber)
+                if os.path.exists(finished_filename):
+                    for suffix_id in range(100):
+                        # split into path and extension
+                        base_path = os.path.splitext(finished_filename)
+                        # format the base path
+                        base_name = base_path[0] + "_%02d" % (suffix_id)
+                        # add suffix back
+                        finished_filename = base_name + base_path[1]
+                        # if the filename doesn't exist, break
+                        if not os.path.exists(finished_filename):
+                            break
+
                 # rename the file if necessary
                 if self.cur_name != finished_filename:
-                    os.rename(self.cur_name, finished_filename)
-
-
+                    # attempt not to clobber in case we failed to find a
+                    # valid name
+                    if not os.path.exists(finished_filename):
+                        os.rename(self.cur_name, finished_filename)
 
         finally:
             # release the lock
@@ -236,6 +251,9 @@ class RotatingOutFile(object):
 
                 self.start_file(fn)
 
+            if self.file is None:
+                self.start_file(fn)
+
             # write the data
             self.file.write(line + "\n")
 
@@ -271,7 +289,7 @@ class MakePathTest(unittest.TestCase):
         import shutil
 
         # attempt to remove the entire temporary tree
-        shutil.rmtree(self.base_dir)
+        #shutil.rmtree(self.base_dir)
 
     def test(self):
         """do test."""
@@ -283,8 +301,7 @@ class MakePathTest(unittest.TestCase):
         #    minute_interval=10)
         pass
 
-
-class FilenameTest(unittest.TestCase):
+class RotatingTestCaseBase(unittest.TestCase):
 
     """Filename tests."""
 
@@ -295,8 +312,8 @@ class FilenameTest(unittest.TestCase):
         self.collection = "test"
         self.ext = ".json"
         self.tmp_ext = ".tmp"
-        self.dt = datetime(1997, 10, 30, 12, 56, 0, 0)
-        self.dt_string = "19971030_1250"
+        self.dt = datetime(1997, 10, 30, 12, 36, 0, 0)
+        self.dt_string = "19971030_1230"
         self.filename = os.path.join(
             self.base_dir,
             self.collection,
@@ -305,8 +322,8 @@ class FilenameTest(unittest.TestCase):
         self.file = RotatingOutFile(
             base_dir=self.base_dir,
             collection_name=self.collection,
-            extension=".json",
-            temporary_extension=".tmp",
+            extension=self.ext,
+            temporary_extension=self.tmp_ext,
             minute_interval=10)
 
     def tearDown(self):
@@ -316,15 +333,17 @@ class FilenameTest(unittest.TestCase):
         # attempt to remove the entire temporary tree
         shutil.rmtree(self.base_dir)
 
+
+class FilenameTest(RotatingTestCaseBase):
+
+    """Filename tests."""
+
     def test_makepath(self):
         """make testpath."""
         unittest_path = os.path.join(
             self.base_dir,
             self.collection)
         self.assertTrue(os.path.exists(unittest_path))
-
-
-
 
     def test_path_concat(self):
         """Test the basic path concat methods for a time."""
@@ -358,14 +377,14 @@ class FilenameTest(unittest.TestCase):
     def test_write(self):
         """test write."""
 
-        filename = self.file.get_filename(self.dt, True)
+        filename = self.file.get_filename(self.dt, False)
 
         # randomize a string for content
         test_content = self.getRandomString(32)
 
         # write content
         self.file.write(test_content, self.dt)
-        self.file.close_file()
+        self.file.end_file()
 
         # verify it was created
         self.assertTrue(
@@ -379,6 +398,39 @@ class FilenameTest(unittest.TestCase):
 
 
 
+class NoClobberTest(RotatingTestCaseBase):
+
+    def test_no_clobber_rename(self):
+        """test that rename doesn't clobber."""
+
+        # first write something in here
+        self.file.write("a", datetime_=self.dt)
+        self.file.end_file()
+
+        # open another
+        self.file.write("bcd", datetime_=self.dt)
+        self.file.end_file()
+
+        filename_base = self.filename + self.dt_string
+        filename = filename_base + self.ext
+        filename_2 = filename_base + "_00" + self.ext
+
+        self.assertTrue(
+            os.path.exists(filename),
+            "original file is missing and shouldn't be.")
+        self.assertTrue(
+            os.path.exists(filename_2),
+            "second file was clobbered")
+        self.assertEqual(
+            os.path.getsize(filename),
+            2,
+            "file size of initial file is wrong (%d != %d)" % (
+                os.path.getsize(filename), 2))
+        self.assertEqual(
+            os.path.getsize(filename_2),
+            4,
+            "file size of second file is wrong (%d != %d)" % (
+                os.path.getsize(filename), 4))
 
 
 if __name__ == '__main__':

@@ -347,7 +347,7 @@ if __name__ == "__main__":
     # configure the logging
     logging_config = config.getValue(
         "client.logging",
-        defaultValue=None,
+        default=None,
         alternatePaths="logging")
 
 
