@@ -117,9 +117,10 @@ class RotatingOutFile(object):
 
                 # check if the file already exists (os.rename can clobber)
                 if os.path.exists(finished_filename):
+                    # split into path and extension
+                    base_path = os.path.splitext(finished_filename)
+
                     for suffix_id in range(100):
-                        # split into path and extension
-                        base_path = os.path.splitext(finished_filename)
                         # format the base path
                         base_name = base_path[0] + "_%02d" % (suffix_id)
                         # add suffix back
@@ -133,6 +134,7 @@ class RotatingOutFile(object):
                     # attempt not to clobber in case we failed to find a
                     # valid name
                     if not os.path.exists(finished_filename):
+                        #print "\nEND FILENAME: ", finished_filename
                         os.rename(self.cur_name, finished_filename)
 
         finally:
@@ -420,7 +422,7 @@ class NoClobberTest(RotatingTestCaseBase):
             "original file is missing and shouldn't be.")
         self.assertTrue(
             os.path.exists(filename_2),
-            "second file was clobbered")
+            "second file doesn't exist. first clobbered?")
         self.assertEqual(
             os.path.getsize(filename),
             2,
@@ -430,7 +432,53 @@ class NoClobberTest(RotatingTestCaseBase):
             os.path.getsize(filename_2),
             4,
             "file size of second file is wrong (%d != %d)" % (
-                os.path.getsize(filename), 4))
+                os.path.getsize(filename_2), 4))
+
+
+    def test_no_clobber_existing_filename(self):
+        filename_base = self.filename + self.dt_string
+        filename = filename_base + self.ext
+        filename_2 = filename_base + "_00" + self.ext
+        filename_3 = filename_base + "_01" + self.ext
+
+        # create an existing file
+        open(filename_2, "w+").close()
+        self.assertTrue(
+            os.path.exists(filename_2),
+            "filename doesn't exist before test")  
+
+        # first write something in here
+        self.file.write("a", datetime_=self.dt)
+        self.file.end_file()
+
+        # open another
+        self.file.write("bcd", datetime_=self.dt)
+        self.file.end_file()
+
+        self.assertTrue(
+            os.path.exists(filename),
+            "original file is missing and shouldn't be.")
+        self.assertTrue(
+            os.path.exists(filename_2),
+            "first file was clobbered?")
+        self.assertTrue(
+            os.path.exists(filename_3),
+            "third file does not exist")
+        self.assertEqual(
+            os.path.getsize(filename),
+            2,
+            "file size of initial file is wrong (%d != %d)" % (
+                os.path.getsize(filename), 2))
+        self.assertEqual(
+            os.path.getsize(filename_2),
+            0,
+            "file size of initial file is wrong (%d != %d)" % (
+                os.path.getsize(filename_2), 0))        
+        self.assertEqual(
+            os.path.getsize(filename_3),
+            4,
+            "file size of second file is wrong (%d != %d)" % (
+                os.path.getsize(filename_3), 4))
 
 
 if __name__ == '__main__':
