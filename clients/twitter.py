@@ -11,6 +11,7 @@ from configfile import ConfigFile
 from server_messenger import ServerMessenger
 from streamer import SourceAddrStreamer
 
+import re
 
 
 class TwitterClient(object):
@@ -27,6 +28,10 @@ class TwitterClient(object):
         self.stream = None
         self.keywords = keywords
         self.auth = None
+
+        self.geo_regex = re.compile(
+            r"geo:\s(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)",
+            re.I)
 
         self.log = logging.getLogger(self.__class__.__name__)
 
@@ -69,10 +74,50 @@ class TwitterClient(object):
 
     def run(self):
         """run the core collection loop"""
+
         if self.keywords is not None:
-            self.stream.filter(track=self.keywords)
+            track_args = self.split_keyword_args()
+            self.log.info("logging keywords: %s", repr(track_args))
+            self.stream.filter(**track_args)
         else:
             self.stream.sample()
+
+    def parse_geo_rect(self, geo_string):
+        m = self.geo_regex.match(geo_string)
+        if m is not None:
+            arr = [float(a) for a in m.groups()]
+            geolong = sorted([arr[0], arr[2]])
+            geolat = sorted([arr[1], arr[3]])
+
+            return [
+                geolong[0],
+                geolat[0],
+                geolong[1],
+                geolat[1]
+            ]
+
+        return None
+
+    def split_keyword_args(self):
+        """parse out geo terms"""
+        keywords = []
+        locations = []
+        ret = {}
+
+        for k in self.keywords:
+            parsed = self.parse_geo_rect(k)
+            if parsed is None:
+                keywords.append(k)
+            else:
+                locations.extend(parsed)
+
+        if len(keywords) > 0:
+            ret["track"] = keywords
+
+        if len(locations) > 0:
+            ret["locations"] = locations
+
+        return ret
 
 
     def isRunning(self):
