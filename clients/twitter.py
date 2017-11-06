@@ -75,9 +75,9 @@ class TwitterClient(object):
     def run(self):
         """run the core collection loop"""
 
-        if self.keywords is not None:
+        if self.keywords is not None and len(self.keywords) > 0:
             track_args = self.split_keyword_args()
-            self.log.info("logging keywords: %s", repr(track_args))
+            self.log.debug("logging keywords: %s", repr(track_args))
             self.stream.filter(**track_args)
         else:
             self.stream.sample()
@@ -107,7 +107,9 @@ class TwitterClient(object):
         for k in self.keywords:
             parsed = self.parse_geo_rect(k)
             if parsed is None:
-                keywords.append(k)
+                if k is not None and len(k.strip()) > 0:
+                    #self.log.info("keyword", repr(k))
+                    keywords.append(k)
             else:
                 locations.extend(parsed)
 

@@ -30,7 +30,7 @@ class TermChecker(object):
         keywords = status_msg.get('twitter_keywords', None)
         return (
             [kw.strip() for kw in
-                keywords.split(",")]
+                keywords.split(",") if len(kw.strip()) > 0]
             if keywords else None)
 
     def checkTerms(self):
@@ -38,7 +38,7 @@ class TermChecker(object):
 
         # request new terms from server
         new_terms = self.requestTerms()
-        new_terms_set = set(new_terms)
+        new_terms_set = set(new_terms) if new_terms is not None else set()
 
         # detail what type of differences
         if new_terms_set != self.current_terms_set:
